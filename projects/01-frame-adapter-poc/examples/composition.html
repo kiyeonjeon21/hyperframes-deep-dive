@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<!--
+  Test composition for the framer-motion adapter PoC.
+
+  This is the *target* shape — Phase 3 of the README.
+  Two squares move + rotate over 5 seconds, all driven by Framer Motion's
+  imperative animate() API.
+
+  Required hyperframes contract (notes/04 + cheatsheets/02):
+    window.__hf = { duration, seek(t) }
+    window.__timelines = { ... }  (registry exists even if unused)
+
+  TODO marks are the parts you fill in.
+-->
+<html lang="en"
+      data-composition-id="framer-poc"
+      data-composition-duration="5"
+      data-width="1920"
+      data-height="1080">
+<head>
+  <meta charset="UTF-8" />
+  <title>Framer Motion FrameAdapter PoC</title>
+
+  <!-- Framer Motion (motion v12+ via CDN) -->
+  <!-- TODO A: pick a CDN URL.
+       motion v12 ESM: https://cdn.jsdelivr.net/npm/motion@latest/dist/+esm
+       Or self-host. Note: `animate()` is a named export. -->
+  <script type="module">
+    // import { animate } from "https://cdn.jsdelivr.net/npm/motion@latest/dist/+esm";
+  </script>
+
+  <style>
+    /* Stage Positioning Convention — see notes/02 sec 5.1 */
+    #stage {
+      position: relative;
+      width: 1920px;
+      height: 1080px;
+      background: #0a0a0a;
+      overflow: hidden;
+    }
+    .box {
+      position: absolute;
+      width: 200px;
+      height: 200px;
+      top: 440px;
+      opacity: 0;          /* GSAP/animate reveal */
+      will-change: transform, opacity;
+    }
+    #box-a { left: 200px;  background: #ff6600; }
+    #box-b { left: 1520px; background: #2563eb; }
+  </style>
+</head>
+
+<body>
+  <div id="stage">
+    <div id="box-a" class="box" data-start="0" data-end="5"></div>
+    <div id="box-b" class="box" data-start="0" data-end="5"></div>
+  </div>
+
+  <script type="module">
+    // ──────────────────────────────────────────────────────────────────────
+    // 1. Set up the timeline registry (mandatory — see notes/02 lint rules)
+    // ──────────────────────────────────────────────────────────────────────
+    window.__timelines = window.__timelines || {};
+    window.__hfFramerMotion = window.__hfFramerMotion || [];
+
+    // ──────────────────────────────────────────────────────────────────────
+    // 2. Create animations imperatively
+    //    TODO B: import { animate } and create two animations:
+    //      - box-a: x from 200 to 1520, rotate 0→360, duration 5
+    //      - box-b: x from 1520 to 200, rotate 0→-360, duration 5
+    //
+    //    Both should:
+    //      - autoplay: false (or pause immediately after creation)
+    //      - have ease: "easeInOut" or similar
+    //      - be pushed to window.__hfFramerMotion[]
+    // ──────────────────────────────────────────────────────────────────────
+    // const anim1 = animate("#box-a", { x: [200, 1520], rotate: [0, 360], opacity: [0, 1, 1] }, { duration: 5, ease: "easeInOut" });
+    // const anim2 = animate("#box-b", { x: [1520, 200], rotate: [0, -360], opacity: [0, 1, 1] }, { duration: 5, ease: "easeInOut" });
+    // anim1.pause();
+    // anim2.pause();
+    // window.__hfFramerMotion.push(anim1, anim2);
+
+    // ──────────────────────────────────────────────────────────────────────
+    // 3. Implement window.__hf — the engine contract
+    //    TODO C: implement seek() so it routes to the adapter.
+    //    Two approaches:
+    //      A) Direct fan-out (page-side):
+    //         seek(t) { for (const a of window.__hfFramerMotion) { a.pause(); a.time = t; } }
+    //      B) Delegate to adapter:
+    //         import the adapter, instantiate it, call seekFrame in seek().
+    //
+    //    Approach B mirrors how producer/engine would call FrameAdapters
+    //    *if* it discovered them via window.__hfAdapters. This is the
+    //    hypothesis you're testing in Phase 3 of README.
+    // ──────────────────────────────────────────────────────────────────────
+    // Approach A (simpler — page does the work):
+    window.__hf = {
+      duration: 5,
+      seek(t) {
+        // TODO C
+        // for (const a of window.__hfFramerMotion) {
+        //   a.pause();
+        //   a.time = Math.max(0, Math.min(a.duration, t));
+        // }
+      },
+    };
+
+    // Approach B (using your adapter — uncomment after Phase 2 done):
+    //
+    // import { createFramerMotionAdapter } from "../src/framer-motion-adapter.js";
+    // const adapter = createFramerMotionAdapter({ fps: 30 });
+    // await adapter.init?.({ compositionId: "framer-poc", fps: 30, width: 1920, height: 1080 });
+    // window.__hf = {
+    //   duration: 5,
+    //   seek(t) { adapter.seekFrame(Math.round(t * 30)); },
+    // };
+
+    // ──────────────────────────────────────────────────────────────────────
+    // 4. (Optional) register a no-op timeline so linter is happy
+    // ──────────────────────────────────────────────────────────────────────
+    // window.__timelines["framer-poc"] = {
+    //   pause() {}, play() {}, seek() {},
+    //   time: () => 0, duration: () => 5,
+    //   isActive: () => false,
+    // };
+  </script>
+</body>
+</html>

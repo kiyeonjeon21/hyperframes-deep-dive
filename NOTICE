@@ -1,0 +1,11 @@
+hyperframe-deep-dive
+
+This repository contains unofficial study notes and small proof-of-concept
+exercises for Hyperframes.
+
+Upstream project: https://github.com/heygen-com/hyperframes
+Upstream license: Apache License 2.0
+
+The notes describe and cite source paths from the upstream Hyperframes project.
+PoC code in this repository is original study scaffolding, written to mirror
+public interfaces and runtime patterns observed in the upstream source.

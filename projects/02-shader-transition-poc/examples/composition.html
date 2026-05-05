@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<!--
+  Demo composition for the pixel-dissolve shader.
+
+  Used for Phase 4 (interactive verification) and Phase 5 (engine compositing).
+
+  HyperShader.init({
+    scenes: ["s1", "s2"],
+    transitions: [{ time: 2, shader: "pixel-dissolve", duration: 2 }],
+  });
+-->
+<html lang="en"
+      data-composition-id="pixel-dissolve-demo"
+      data-composition-duration="6"
+      data-width="1920"
+      data-height="1080"
+      data-duration="6">
+<head>
+  <meta charset="UTF-8" />
+  <title>pixel-dissolve demo</title>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3"></script>
+
+  <!-- TODO: Point this import at your shader-transitions build output (monorepo dist path): -->
+  <script type="module">
+    // import { init } from "/path/to/hyperframes/packages/shader-transitions/dist/index.js";
+    // Or the published package after release:
+    // import { init } from "https://cdn.jsdelivr.net/npm/@hyperframes/shader-transitions/dist/index.js";
+  </script>
+
+  <style>
+    /* Stage Positioning Convention (notes/02 sec 5.1) */
+    #stage {
+      position: relative;
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      background: #0a0a0a;
+    }
+    .scene {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: system-ui, sans-serif;
+      font-size: 240px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: white;
+      opacity: 1;     /* shader-transitions toggles this in engine mode */
+    }
+
+    #s1 { background: #0a0a0a; }
+    #s2 { background: linear-gradient(135deg, #ff6600, #ff3399); }
+  </style>
+</head>
+
+<body>
+  <div id="stage">
+    <div id="s1" class="scene">SCENE 1</div>
+    <div id="s2" class="scene">SCENE 2</div>
+  </div>
+
+  <script type="module">
+    // 1. Timeline registry (required for lint)
+    window.__timelines = window.__timelines || {};
+
+    // 2. HyperShader bootstrap
+    //    TODO: import init(), assign returned timeline
+    //
+    // const tl = init({
+    //   bgColor: "#0a0a0a",
+    //   accentColor: "#ff6600",
+    //   scenes: ["s1", "s2"],
+    //   transitions: [
+    //     { time: 2, shader: "pixel-dissolve", duration: 2, ease: "power2.inOut" },
+    //   ],
+    //   compositionId: "pixel-dissolve-demo",
+    // });
+    // window.__timelines["pixel-dissolve-demo"] = tl;
+
+    // 3. __hf contract
+    //    TODO: Implement seek via timeline `tl`
+    //
+    // window.__hf = {
+    //   duration: 6,
+    //   seek(t) {
+    //     tl.pause();
+    //     tl.time(t);
+    //   },
+    // };
+
+    // 4. (Optional) autoplay in interactive mode only
+    //    Engine renders skip this — the hyperframes engine seeks directly
+    //
+    // if (!window.__HF_VIRTUAL_TIME__) {
+    //   tl.play();
+    // }
+  </script>
+</body>
+</html>

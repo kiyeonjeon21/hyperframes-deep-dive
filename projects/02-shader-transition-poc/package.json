@@ -1,0 +1,14 @@
+{
+  "name": "pixel-dissolve-shader-poc",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "test:reference": "bun test src/pixel-dissolve.test.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.5.0"
+  }
+}
