@@ -1,86 +1,97 @@
-# cheatsheet/03 — Render flags & GPU encoder
+# cheatsheet/03 - Render flags and capture modes
 
-> Chrome flag meanings, BeginFrame debugging, GPU encoder autodetection.
+## Output formats
 
-## BeginFrame-only Chrome flags (9)
-
-`packages/engine/src/services/browserManager.ts:84-94`. All for deterministic rendering. **Must be stripped in screenshot fallback** or captures can be empty.
-
-| flag | Meaning |
+| Format | Notes |
 |---|---|
-| `--deterministic-mode` | Chrome deterministic mode (fixed RNG seeds, etc.) |
-| `--enable-begin-frame-control` | Enable `HeadlessExperimental.beginFrame` CDP |
-| `--disable-new-content-rendering-timeout` | Disable render timeouts (external BeginFrame pacing) |
-| `--run-all-compositor-stages-before-draw` | Run full compositor pipeline before draw |
-| `--disable-threaded-animation` | Animations on main thread only |
-| `--disable-threaded-scrolling` | Same for scrolling |
-| `--disable-checker-imaging` | Disable partial image decode |
-| `--disable-image-animation-resync` | Disable GIF/APNG automatic resync |
-| `--enable-surface-synchronization` | Force surface sync |
+| `mp4` | default opaque output; HDR-capable path |
+| `webm` | VP9 alpha-capable; forces screenshot and SDR |
+| `mov` | ProRes 4444 alpha/editor ingest; forces screenshot and SDR |
+| `png-sequence` | RGBA frames; forces screenshot and SDR |
 
-## Strip conditions
+## Capture mode decision
 
-`packages/engine/src/services/browserManager.ts`:
-- `process.platform !== 'linux'` — BeginFrame less reliable off Linux
-- `forceScreenshot` config true
-- BeginFrame probe fails (chrome-headless-shell missing the method)
+Screenshot mode can be forced by:
 
-When stripped, **screenshot mode** falls back to `Page.captureScreenshot` CDP — weaker determinism (rAF/setTimeout timing), but works.
+- config/CLI
+- alpha output
+- compiler render-mode hints
+- BeginFrame probe failure
+- unsupported platform/browser
 
-## BeginFrame probe (115–137)
+BeginFrame is preferred when available because it gives tighter compositor timing.
+Screenshot fallback is more portable and required for alpha.
 
-Once per browser acquire:
+## Exact FPS
 
-```ts
-await client.send("HeadlessExperimental.beginFrame", {
-  frameTimeTicks: 1, interval: 16, noDisplayUpdates: true
-});
+Accepted:
+
+```bash
+--fps 30
+--fps 30000/1001
 ```
 
-2s timeout; on failure cache `{ supportsBeginFrame: false }`. Workers then use screenshot mode.
+Rejected:
 
-## GPU encoder autodetection
+```bash
+--fps 29.97
+```
 
-Near `detectGpuEncoder()` in `packages/engine/src/services/streamingEncoder.ts`:
-- macOS: `videotoolbox` (`h264_videotoolbox`, `hevc_videotoolbox`)
-- Linux NVIDIA: `nvenc` (`h264_nvenc`, `hevc_nvenc`)
-- Linux AMD: `vaapi`
-- Default: libx264 (CPU)
+Use exact rationals for NTSC-like rates.
 
-CRF mapping:
-- `--quality draft`: x264 CRF 28
-- `--quality standard`: x264 CRF 23
-- `--quality high`: x264 CRF 18
+## Supersampling / 4K
 
-## HDR color metadata
+`--output-resolution` uses Chrome `deviceScaleFactor`:
 
-`packages/engine/src/services/chunkEncoder.ts:196-220`:
-- SDR: `bt709` throughout
-- PQ HDR (HEVC Main10): `bt2020` primaries + `smpte2084` transfer + `bt2020nc` matrix
-- HLG HDR: `bt2020` primaries + `arib-std-b67` transfer + `bt2020nc` matrix
+```bash
+hyperframes render --output-resolution 4k -o out.mp4
+hyperframes lambda render ./project --output-resolution landscape-4k --wait
+```
+
+The authored composition dimensions remain unchanged. The output dimensions are
+composition dimensions multiplied by the resolved scale factor.
+
+## Variables
+
+```bash
+hyperframes render --variables '{"title":"Hello"}' -o out.mp4
+hyperframes render --variables-file vars.json --strict-variables -o out.mp4
+```
+
+Lambda mirrors this:
+
+```bash
+hyperframes lambda render ./template --variables-file vars.json --wait
+```
 
 ## Debug commands
 
 ```bash
-# Force single worker (isolate parallelism issues)
-hyperframes render --workers 1
+# Force single local worker to isolate parallelism issues
+hyperframes render --workers 1 --debug -o out.mp4
 
-# Force screenshot mode (suspect BeginFrame)
-HYPERFRAMES_FORCE_SCREENSHOT=1 hyperframes render
+# Transparent output
+hyperframes render --format webm -o overlay.webm
+hyperframes render --format png-sequence -o frames/
 
-# Verbose ffmpeg logs
-HYPERFRAMES_FFMPEG_LOG=verbose hyperframes render
+# HDR decisions
+hyperframes render --hdr -o hdr.mp4
+hyperframes render --sdr -o sdr.mp4
 
-# External Chrome binary
-PRODUCER_HEADLESS_SHELL_PATH=/path/to/chrome-headless-shell hyperframes render
-
-# Deterministic render aligned with CI
-hyperframes render --docker
+# Lambda progress/cost
+hyperframes lambda progress <render-id-or-execution-arn>
 ```
 
-(Confirm env var names via grep in `engine/services/browserManager.ts`, `streamingEncoder.ts`, etc.)
+## Source search
 
-## Further reading
+```bash
+rg "forceScreenshot|captureMode|beginFrame" packages/engine/src packages/producer/src
+rg "outputResolution|deviceScaleFactor" packages/producer/src packages/cli/src
+rg "parseFps|fpsToFfmpegArg" packages/core/src packages/cli/src
+```
 
-- Note 04 — `frameCapture` `initializeSession` BeginFrame warmup loop
-- Cheatsheet 04 — why Docker baseline is mandatory (chrome-headless-shell drift)
+## Related
+
+- [../04-engine-capture.md](../04-engine-capture.md)
+- [../05-producer-pipeline.md](../05-producer-pipeline.md)
+- [../11-aws-lambda-distributed.md](../11-aws-lambda-distributed.md)

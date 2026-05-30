@@ -1,247 +1,214 @@
 # hyperframe-deep-dive
 
-Unofficial study workspace for deep-diving Hyperframes: seven packages (`core`, `engine`, `producer`, `cli`, `studio`, `player`, `shader-transitions`) and how they work internally.
+Unofficial study workspace for deep-diving HyperFrames internals. The notes track the
+local upstream checkout at:
 
-> Upstream project: <https://github.com/heygen-com/hyperframes> (Apache 2.0)
-> Source checkout for commands below: set `HYPERFRAMES_REPO=/path/to/hyperframes`
-> This repository contains study notes and PoC exercises; it is not an upstream Hyperframes package.
+- Source checkout: `/Users/kiyeonjeon/dev/oss/hyperframes`
+- Upstream repo: <https://github.com/heygen-com/hyperframes>
+- Public docs: <https://hyperframes.mintlify.app/introduction>
+- Current study baseline: `@hyperframes/*` package version `0.6.61`, commit
+  `a5f3b5b2`, branch `feat/registry-news-ticker-preview`
+
+This repository contains study notes and small PoC exercises. It is not an upstream
+HyperFrames package.
 
 ## Where to start
 
-**First time** → [`notes/01-architecture-overview.md`](notes/01-architecture-overview.md) (big picture + three mermaid diagrams + map into the notes) → then the learning order below.
+First time: start with [notes/01-architecture-overview.md](notes/01-architecture-overview.md),
+then read the package notes in dependency order.
 
-**Quick entry by goal**:
+Quick entry by goal:
 
 | Goal | Entry path |
 |---|---|
-| Add a new frame adapter | [cheatsheet/01](notes/cheatsheets/01-frame-adapter.md) → [note 03](notes/03-core-runtime-adapters.md) → [PoC 01 track A](projects/01-frame-adapter-poc/) |
-| Add a new shader transition | [note 08](notes/08-shader-transitions.md) → [PoC 02 track A](projects/02-shader-transition-poc/) |
-| Debug determinism | [cheatsheet/03](notes/cheatsheets/03-render-flags.md) + [cheatsheet/04](notes/cheatsheets/04-regression-testing.md) + [note 04](notes/04-engine-capture.md) |
-| Quick `window.*` contract reference | [cheatsheet/02](notes/cheatsheets/02-runtime-contract.md) (includes devtools snippets) |
-| Understand HDR rendering | [note 05 §4.7 + open items 4](notes/05-producer-pipeline.md) (HLG pass-through note) |
-| Studio internals (editing + captions) | [note 07](notes/07-studio-player.md) → [note 09](notes/09-studio-editing.md) → [note 10](notes/10-studio-captions-picker.md) |
-| Full lint rule catalog (60 rules) | [`notes/lint-rules.md`](notes/lint-rules.md) |
-| Note `file:line` reference accuracy | [`notes/file-refs-audit.md`](notes/file-refs-audit.md) |
-
-**Reading upstream source**:
-```bash
-export HYPERFRAMES_REPO=/path/to/hyperframes
-
-# VS Code: cmd-click for file:line jumps
-code "$HYPERFRAMES_REPO/packages/core/src/runtime/init.ts:24"
-
-# Quick search (ripgrep)
-rg "FrameAdapter" "$HYPERFRAMES_REPO/packages"
-
-# devtools console (after preview — see cheatsheet/02)
-const fr = document.querySelector('hyperframes-player').iframeElement.contentWindow;
-fr.__hf.duration; fr.__hf.seek(2.5); fr.__player; fr.__timelines;
-```
+| Understand the whole system | [note 01](notes/01-architecture-overview.md) -> [note 05](notes/05-producer-pipeline.md) -> [note 11](notes/11-aws-lambda-distributed.md) |
+| Author HTML compositions | [note 02](notes/02-core-types-parsers.md) -> [note 12](notes/12-variables-templates.md) -> [cheatsheet/02](notes/cheatsheets/02-runtime-contract.md) |
+| Add or reason about runtime adapters | [cheatsheet/01](notes/cheatsheets/01-frame-adapter.md) -> [note 03](notes/03-core-runtime-adapters.md) -> [PoC 01](projects/01-frame-adapter-poc/) |
+| Debug deterministic rendering | [note 04](notes/04-engine-capture.md) -> [note 05](notes/05-producer-pipeline.md) -> [cheatsheet/03](notes/cheatsheets/03-render-flags.md) |
+| Understand Lambda/distributed rendering | [note 11](notes/11-aws-lambda-distributed.md) -> upstream `docs/deploy/aws-lambda.mdx` |
+| Understand Studio/player editing | [note 07](notes/07-studio-player.md) -> [note 09](notes/09-studio-editing.md) -> [note 10](notes/10-studio-captions-picker.md) |
+| Understand shader transitions | [note 08](notes/08-shader-transitions.md) -> [PoC 02](projects/02-shader-transition-poc/) |
+| Understand AI-agent and catalog workflows | [note 13](notes/13-agent-catalog-docs.md) |
 
 ## Directory layout
 
-```
+```text
 hyperframe-deep-dive/
-├── README.md                           ← this file (checklist + package map)
+├── README.md
 ├── notes/
-│   ├── 01-architecture-overview.md     ← big picture — start here
-│   ├── 02-core-types-parsers.md        ← core: types / parsers / generators / linter
-│   ├── 03-core-runtime-adapters.md     ← core: runtime + frame adapters
-│   ├── 04-engine-capture.md            ← engine: BeginFrame + FFmpeg
-│   ├── 05-producer-pipeline.md         ← producer: HDR multi-pass + audio + regression tests
-│   ├── 06-cli-orchestration.md         ← cli: citty + 24 commands
-│   ├── 07-studio-player.md             ← player + iframe bridge
-│   ├── 08-shader-transitions.md        ← WebGL: 14 shaders (engine TRANSITIONS has 15)
-│   ├── 09-studio-editing.md            ← studio: App.tsx + Timeline + files + render queue
-│   ├── 10-studio-captions-picker.md    ← studio: caption subsystem + element picker
-│   ├── lint-rules.md                   ← full catalog of 60 lint rules
-│   ├── file-refs-audit.md              ← automated check log for note file:line refs
+│   ├── 01-architecture-overview.md      # package graph + render/preview/deploy maps
+│   ├── 02-core-types-parsers.md         # core types, parser, compiler-facing APIs, linter
+│   ├── 03-core-runtime-adapters.md      # runtime bootstrap + deterministic adapters
+│   ├── 04-engine-capture.md             # Chrome, BeginFrame, screenshot fallback, FFmpeg
+│   ├── 05-producer-pipeline.md          # staged local render pipeline
+│   ├── 06-cli-orchestration.md          # citty CLI, 29 root commands, deploy/auth/cloud
+│   ├── 07-studio-player.md              # player web component + Studio playback bridge
+│   ├── 08-shader-transitions.md         # WebGL shaders + engine compositing
+│   ├── 09-studio-editing.md             # Studio shell, file/code/edit panels, DOM edits
+│   ├── 10-studio-captions-picker.md     # captions + picker/manual editing surfaces
+│   ├── 11-aws-lambda-distributed.md     # distributed primitives + AWS Lambda adapter
+│   ├── 12-variables-templates.md        # composition variables + template rendering
+│   ├── 13-agent-catalog-docs.md         # skills, registry/catalog, MCP, website-to-video
+│   ├── lint-rules.md                    # linter rule catalog
+│   ├── file-refs-audit.md               # reference audit log
 │   └── cheatsheets/
-│       ├── 01-frame-adapter.md         ← how to add an adapter (7 steps)
-│       ├── 02-runtime-contract.md      ← window.__hf etc. + devtools commands
-│       ├── 03-render-flags.md         ← Chrome flags / GPU encoder
-│       └── 04-regression-testing.md    ← Docker baseline / PSNR / audio
+│       ├── 01-frame-adapter.md
+│       ├── 02-runtime-contract.md
+│       ├── 03-render-flags.md
+│       └── 04-regression-testing.md
 └── projects/
-    ├── 01-frame-adapter-poc/           ← hands-on adapter exercise
-    └── 02-shader-transition-poc/       ← hands-on shader exercise
+    ├── 01-frame-adapter-poc/
+    └── 02-shader-transition-poc/
 ```
 
 ## Package map
 
-One-line definition per package + a single must-read file.
+HyperFrames is now best read as eight packages plus registry/docs/skills content:
 
-| Package | One line | Must-read |
+| Package | One-line responsibility | Start here |
 |---|---|---|
-| `@hyperframes/core` | Types / parsers / linter / runtime — the foundation | `packages/core/src/index.ts` (192 lines, export map) |
-| `@hyperframes/engine` | Puppeteer + BeginFrame + FFmpeg capture | `packages/engine/src/services/frameCapture.ts` |
-| `@hyperframes/producer` | Orchestration on top of engine (HDR / audio / regression) | `packages/producer/src/services/renderOrchestrator.ts` |
-| `@hyperframes/cli` | citty-based entry with 24 commands | `packages/cli/src/cli.ts` (124 lines) |
-| `@hyperframes/studio` | NLE editor on React + Zustand + Motion | `packages/studio/src/player/hooks/useTimelinePlayer.ts` |
-| `@hyperframes/player` | `<hyperframes-player>` vanilla web component | `packages/player/src/hyperframes-player.ts` |
-| `@hyperframes/shader-transitions` | 14 WebGL transition shaders + GSAP driver (engine TRANSITIONS has 15 — only `crossfade` is engine-only) | `packages/shader-transitions/src/hyper-shader.ts` |
+| `@hyperframes/core` | Shared types, HTML parsing, compiler helpers, linter, runtime, variables, registry schema | `packages/core/src/index.ts` |
+| `@hyperframes/engine` | Browser lifecycle, deterministic capture, video/audio extraction, FFmpeg helpers, HDR/shader utilities | `packages/engine/src/index.ts` |
+| `@hyperframes/producer` | Local render orchestration plus distributed render primitives | `packages/producer/src/services/renderOrchestrator.ts`, `packages/producer/src/distributed.ts` |
+| `@hyperframes/aws-lambda` | Lambda handler, Step Functions event types, S3 transport, SDK, CDK construct | `packages/aws-lambda/src/index.ts` |
+| `@hyperframes/cli` | `hyperframes` command surface, lazy subcommands, telemetry/update/auth/deploy glue | `packages/cli/src/cli.ts` |
+| `@hyperframes/player` | `<hyperframes-player>` custom element, iframe runtime injection, controls, direct timeline fallback | `packages/player/src/hyperframes-player.ts` |
+| `@hyperframes/studio` | React Studio, NLE layout, file manager, DOM/manual editing, captions, render queue | `packages/studio/src/App.tsx` |
+| `@hyperframes/shader-transitions` | WebGL preview transitions, snapshot cache, CSS fallback, render-mode metadata | `packages/shader-transitions/src/hyper-shader.ts` |
 
-## Learning order (checklist)
+## Learning order
 
-Read in dependency order: open each note’s **must-read** source, then read the note body.
+Read in dependency order. Each note is a learning map, not a replacement for the source.
 
-**Phase B (note bodies) — done ✓**. All notes + four cheatsheets are filled in.
-Next: verify notes against `file:line` in upstream + work through `projects/` PoCs.
+- [x] 01 - architecture overview: package graph, local vs distributed render, public docs map
+- [x] 02 - core types/parsers: exact FPS, variables, linter modules, registry types
+- [x] 03 - runtime/adapters: `window.__hf`, PlayerAPI, GSAP/CSS/anime/Lottie/Three/WAAPI/TypeGPU
+- [x] 04 - engine capture: Chrome mode selection, BeginFrame, screenshot fallback, alpha/HDR helpers
+- [x] 05 - producer pipeline: staged local render flow, probe/extract/audio/capture/encode/assemble
+- [x] 06 - CLI orchestration: 29 lazy root commands, grouped help, auth/cloud/lambda surfaces
+- [x] 07 - Studio/player bridge: player custom element, direct timeline fallback, iframe bridge
+- [x] 08 - shader transitions: 14 package shaders, 15 engine transitions, preview snapshot cache
+- [x] 09 - Studio editing: app shell, file manager, source editor, DOM edit/session split
+- [x] 10 - captions/picker: caption store/UI/sync and manual editing/picker hooks
+- [x] 11 - AWS Lambda/distributed: `plan -> renderChunk -> assemble`, SAM/CDK/SDK/CLI
+- [x] 12 - variables/templates: declaration, runtime resolution, validation, Lambda batches
+- [x] 13 - agent/catalog/docs: skills, registry, website capture, MCP/cloud product boundary
 
-- [x] **01-architecture-overview** — package graph, `render` / `preview` traces, runtime contract
-- [x] **02-core-types-parsers** — `core.types.ts` (390 lines) type hub / DOMParser HTML / regex GSAP / six linter modules
-- [x] **03-core-runtime-adapters** — `runtime/init.ts` (1767 lines) bootstrap / two adapter kinds / six RuntimeDeterministicAdapter comparison
-- [x] **04-engine-capture** — `browserManager` nine Chrome flags + BeginFrame probe / `frameCapture` / `streamingEncoder` FrameReorderBuffer / `parallelCoordinator` constraints
-- [x] **05-producer-pipeline** — `renderOrchestrator` five stages / `fileServer` VIRTUAL_TIME_SHIM (95 lines) / HDR multi-pass / `regression-harness` PSNR + audio correlation
-- [x] **06-cli-orchestration** — citty + lazy load / 24 commands / `render` · `preview` · `validate` / `help.ts` grouping
-- [x] **07-studio-player** — vanilla web component (1023 lines) + audio proxy / iframe ↔ React bridge / Zustand + `liveTime` pub-sub
-- [x] **08-shader-transitions** — `registry.ts` 14 shaders / two-mode init (WebGL vs `tl.set` only) / handoff to engine composite
+## Current architecture in one pass
 
-Cheatsheets — quick references while learning (all written):
+```text
+Author HTML
+  -> core compile/bundle/lint/runtime injection
+  -> producer local pipeline
+     compile -> browser probe -> extract videos -> mix audio -> capture -> encode -> assemble
+  -> engine services
+     Chrome + virtual time + BeginFrame/screenshot + FFmpeg
+  -> output
+     mp4 / webm / mov / png-sequence
+```
 
-- [x] **cheatsheets/01-frame-adapter** — seven steps to add an adapter
-- [x] **cheatsheets/02-runtime-contract** — single-page `window.*` + devtools
-- [x] **cheatsheets/03-render-flags** — Chrome flags / BeginFrame debug / GPU encoder
-- [x] **cheatsheets/04-regression-testing** — Docker baseline / PSNR / audio correlation
+Distributed rendering splits the same work into pure primitives:
 
-## Remotion → Hyperframes mapping
+```text
+plan(projectDir, config, planDir)
+  -> frozen compiled HTML + extracted assets + audio + encoder/chunk metadata + planHash
 
-If you know Remotion, use this table to map concepts quickly.
+renderChunk(planDir, chunkIndex, output)
+  -> deterministic capture/encode for one frame slice
 
-| Remotion | Hyperframes | Notes |
-|---|---|---|
-| `<Composition>` (React) | `<div id="stage" data-composition-id ...>` (HTML + data attrs) | Core choice: HTML-first |
-| `useCurrentFrame()` | `window.__hf.seek(time)` + GSAP timeline or CSS `animation-currentTime` | Adapters bridge libraries |
-| Remotion Player (React) | `<hyperframes-player>` (vanilla, iframe isolation) | Two builds: ESM + global |
-| Remotion Studio | hyperframes Studio (React + Motion + Zustand, Tailwind v3) | Studio pokes iframe runtime globals directly |
-| `<TransitionSeries>` | `@hyperframes/shader-transitions` (WebGL + GSAP) | 14 declarative shaders (15 in engine composite) |
-| Lambda distributed render | (none) — workers are local processes / Docker | `parallelCoordinator` schedules work |
-| `delayRender()` / `continueRender()` | `pollPageExpression(window.__hf)` | Page signals readiness |
-| BeginFrame pattern (Remotion-inspired) | `HeadlessExperimental.beginFrame` + virtual time shim | Same family; attribution comments in engine |
-| image2pipe streaming (Remotion) | `streamingEncoder.ts` (FFmpeg stdin + reorder buffer) | Same pattern |
+assemble(planDir, chunkPaths, audio, output)
+  -> final mux/concat/copy or CFR re-encode
+```
 
-## Deterministic contract (`window.*` namespace)
+`@hyperframes/aws-lambda` is an adapter around those primitives. It adds S3 transport,
+Step Functions orchestration, a Lambda handler, SDK helpers, and CLI deployment verbs.
 
-Contract between the composition page and hosts (engine / producer / player / studio). This is the spine of Hyperframes.
+## Deterministic contract
+
+The central idea is unchanged: the composition page must expose seekable time.
 
 ```ts
-// 1. Time — producer calls; page implements
 window.__hf = {
   duration: number,
-  seek(timeSeconds: number): void,           // deterministic visual state
+  seek(timeSeconds: number): void,
   media?: HfMediaElement[],
   transitions?: HfTransitionMeta[],
 }
-
-// 2. Virtual time — injected by fileServer; consumed by runtime
-window.__HF_VIRTUAL_TIME__ = {
-  seekToTime(ms: number): number,            // fake Date.now / perf.now / timers / rAF
-}
-
-// 3. Player (interactive) — runtime exposes; studio/player call
-window.__player = {
-  seek, play, pause, addElement, removeElement, ...  // PlayerAPI 43-method compat
-}
-
-// 4. GSAP timeline registry — one per composition id
-window.__timelines = { [compositionId]: gsap.timeline() }
-
-// 5. Text measurement helper
-window.__hyperframes = {
-  fitTextFontSize(text, { maxWidth, baseFontSize, minFontSize, fontWeight, fontFamily, step })
-}
-
-// 6. Adapter hooks (runtime auto-discovery)
-window.__hfAnime = []            // anime.js instances
-window.__hfLottie = []           // Lottie instances
-window.__hfThreeTime = number    // Three.js time
-
-// 7. Studio / player helpers
-window.__clipManifest            // runtime timeline payload cache
-window.__playerReady             // runtime bootstrap complete
-window.__renderReady             // render readiness flag
-window.__HF_PICKER_API           // element picker imperative API
 ```
 
-**Why it matters**: the whole system rests on one idea — if the page inside the iframe implements this contract, any host can drive the composition in both deterministic render mode and interactive mode.
+Important adjacent globals in the current version:
+
+```ts
+window.__HF_VIRTUAL_TIME__      // fake Date/performance/timers/rAF during render
+window.__player                 // interactive PlayerAPI used by player/studio
+window.__timelines              // GSAP timeline registry by composition id
+window.__hyperframes            // runtime helpers such as getVariables() and fitTextFontSize()
+window.__hfVariables            // top-level render-time variable overrides
+window.__hfVariablesByComp      // scoped sub-composition variable overrides
+window.__hfAnime                // optional anime.js instance registry
+window.__hfLottie               // optional Lottie instance registry
+window.__hfThreeTime            // Three.js seek time
+window.__hfTypegpuTime          // TypeGPU/WebGPU seek time
+window.__HF_PICKER_API          // picker/manual edit bridge
+```
+
+If the page implements this contract, local render, player preview, Studio editing,
+and distributed chunk workers can all drive the same source.
 
 ## Reading workflow
 
 ```bash
-export HYPERFRAMES_REPO=/path/to/hyperframes
+export HYPERFRAMES_REPO=/Users/kiyeonjeon/dev/oss/hyperframes
 
-# Jump to file:line — VS Code “Go to File” or Cursor:
-code "$HYPERFRAMES_REPO/packages/core/src/runtime/init.ts:24"
-
-# Search — prefer ripgrep
-rg "FrameAdapter" "$HYPERFRAMES_REPO/packages"
-
-# Follow call paths
+# Fast file search
 rg "window.__hf" "$HYPERFRAMES_REPO/packages"
+rg "plan\\(" "$HYPERFRAMES_REPO/packages/producer/src"
+rg "lambda" "$HYPERFRAMES_REPO/packages/cli/src/commands"
 
-# See it run (separate terminal)
-cd "$HYPERFRAMES_REPO" && bun install && bun run build
-cd /path/to/test-project && npx hyperframes preview --dir .
-# In devtools: inspect window.__hf, window.__player
+# Source entrypoints
+code "$HYPERFRAMES_REPO/packages/core/src/runtime/init.ts"
+code "$HYPERFRAMES_REPO/packages/producer/src/distributed.ts"
+code "$HYPERFRAMES_REPO/packages/aws-lambda/src/index.ts"
 ```
 
-> Treat the upstream checkout as read-only while using these notes. Keep experiments in a separate scratch directory outside this repo unless a PoC explicitly says otherwise.
+Useful upstream docs to keep open:
 
-## Phase C — PoCs (hands-on)
+- `docs/introduction.mdx`
+- `docs/concepts/variables.mdx`
+- `docs/guides/rendering.mdx`
+- `docs/deploy/aws-lambda.mdx`
+- `docs/deploy/templates-on-lambda.mdx`
+- `docs/guides/mcp.mdx`
+- `docs/guides/website-to-video.mdx`
 
-Reading alone does not internalize the notes. Two PoCs let you **own** determinism and the contract in your own code.
+## PoCs
 
-### projects/01-frame-adapter-poc
+The PoCs remain hands-on exercises. They are intentionally not pre-solved.
 
-> Wire Framer Motion `animate()` into Hyperframes’ deterministic time contract; also explore the gap between public `FrameAdapter` and internal `RuntimeDeterministicAdapter`.
+### `projects/01-frame-adapter-poc`
 
-Two tracks:
-- **Track A (in this repo, ~30–60 min)**: `bun test` with mocks — learn adapter logic without a full Hyperframes install.
-- **Track B (1–3 h, needs environment)**: real Hyperframes project + preview/render determinism.
+Wire a Framer Motion-style adapter into the deterministic seek contract.
 
 ```bash
-# Track A — start here:
 cd projects/01-frame-adapter-poc
-bun install && bun test       # reference impl should pass 20 tests
+bun install
+bun test
 ```
 
-- [ ] **Track A** Phases 1–3: fill four TODOs in the skeleton; pass all 20 tests with your code
-- [ ] **Track B** Phases 1–7: environment setup → preview/render checks → extend note 03
+### `projects/02-shader-transition-poc`
 
-Details: [`projects/01-frame-adapter-poc/README.md`](projects/01-frame-adapter-poc/README.md)
-
-### projects/02-shader-transition-poc
-
-> Add a `pixel-dissolve` transition and align **WebGL and Node** implementations so they look the same.
-
-Two tracks:
-- **Track A (in this repo, ~1–2 h)**: `bun test` — Node composite only; no WebGL required.
-- **Track B (3–5 h, Hyperframes worktree)**: GLSL fragment shader + interactive demo + drift checks.
+Implement a `pixel-dissolve` transition and align the JS/rgb48le side with the
+GLSL mental model.
 
 ```bash
-# Track A — start here:
 cd projects/02-shader-transition-poc
-bun install && bun test       # reference impl should pass 18 tests
+bun install
+bun test
 ```
-
-- [ ] **Track A**: implement `pixel-dissolve.ts` skeleton (Buffer + rgb48le); pass 18 tests
-- [ ] **Track B** Phases 1–8: GLSL + drift validation + extend note 08
-
-Details: [`projects/02-shader-transition-poc/README.md`](projects/02-shader-transition-poc/README.md)
-
-### Phase D — optional follow-ups
-
-After both PoCs:
-- Try other libraries (Theatre.js, popmotion) or shaders (e.g. paper-tear, ink-bleed)
-- Patch inaccuracies you find back into these notes
-- Add `notes/progress.md` (phase start/end, blockers, fixes)
 
 ## Progress notes
 
 - Started: 2026-05-05
-- Baseline: hyperframes v0.4.45 (`a57d63b5`, 2026-05-05 source snapshot)
-- **Phase A** (skeleton + stubs) — done
-- **Phase B** (ten notes + four cheatsheets) — done
-- **Phase C** (two PoC skeletons + reference + 38 `bun` tests) — done
-- **Phase D** (open items, mermaid, lint-rules, cross-links) — done
-- **Phase F** (optional integrations) — done
-- Total: ~9000+ lines, 38+ files
+- Original baseline: HyperFrames v0.4.45 (`a57d63b5`)
+- Refreshed baseline: HyperFrames v0.6.61 (`a5f3b5b2`)
+- Refresh focus: docs-as-learning-roadmap, not upstream code changes

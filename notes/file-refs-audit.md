@@ -1,77 +1,88 @@
 # file-refs-audit
 
-> Audit log verifying that `packages/.../*.ts(:line)` references in all lab notes map to real hyperframes source.
+> Audit log for local source references in these notes. The notes intentionally
+> prefer file-level references over brittle line numbers.
 
-## Last audit: 2026-05-05
+## Last audit: 2026-05-30
 
-### Extraction method
+Baseline source checkout:
+
+```text
+/Users/kiyeonjeon/dev/oss/hyperframes
+branch: feat/registry-news-ticker-preview
+commit: a5f3b5b2
+package version: 0.6.61
+```
+
+## Extraction method
+
+From this repo:
 
 ```bash
-grep -hroE 'packages/[a-z-]+/src/[a-zA-Z0-9_/.-]+\.ts(:[0-9]+(-[0-9]+)?)?' \
-  notes/*.md \
-  notes/cheatsheets/*.md \
+rg -o 'packages/[A-Za-z0-9_./-]+\\.(tsx|ts|mjs|json|js|mdx|md)(:[0-9]+)?' README.md notes \
+  | sed 's/.*packages/packages/' \
   | sort -u
 ```
 
-Unique `.ts` references extracted: **45** (`.tsx` tracked separately)
+Then check each path against:
 
-### Verification procedure
-
-For each ref:
-1. Confirm `$HYPERFRAMES_REPO/<file>` exists
-2. If a line number is present, confirm it is within the file’s line count
-
-```bash
-export HYPERFRAMES_REPO=/path/to/hyperframes
-
-while read ref; do
-  file="${ref%%:*}"
-  if [ ! -f "$HYPERFRAMES_REPO/$file" ]; then
-    echo "MISSING: $ref"
-  fi
-  if [[ "$ref" == *:* ]]; then
-    line="${ref#*:}"; line="${line%%-*}"
-    max=$(wc -l < "$HYPERFRAMES_REPO/$file" 2>/dev/null)
-    if [ "$line" -gt "$max" ] 2>/dev/null; then
-      echo "OUT_OF_RANGE: $ref (file has $max lines)"
-    fi
-  fi
-done < /tmp/lab-refs-all.txt
+```text
+/Users/kiyeonjeon/dev/oss/hyperframes/<path>
 ```
 
-### Results (2026-05-05)
+Important regex detail: longer suffixes must appear before shorter overlapping
+suffixes (`tsx` before `ts`, `json` before `js`) or paths can be partially
+matched.
 
-| Item | Finding | Action |
-|---|---|---|
-| MISSING `packages/producer/src/audioRegression.ts` | cheatsheet/04:67 — actual path is `packages/producer/src/utils/audioRegression.ts` | Patched |
-| MISSING `packages/studio/src/components/nle/NLELayout.ts` | Regex limitation (actual entry uses `.tsx`) — false positive | (no action) |
-| MISSING `packages/studio/src/player/Player.ts` | Same false positive (actual `.tsx`) | (no action) |
-| OUT_OF_RANGE | 0 cases | (no action) |
+## Results
 
-**Real fix needed**: one — correct `audioRegression.ts` → `utils/audioRegression.ts` in cheatsheet/04.
+Current audit after the v0.6.61 refresh:
 
-### Separate `.tsx` verification (auxiliary)
+- README and notes source references resolve against the local checkout.
+- Old stale references to removed/moved Studio paths were eliminated.
+- Old stale references to the former producer audio regression helper path were
+  eliminated; the current helper lives under `packages/producer/src/utils/`.
+- The notes now avoid line-specific references except in code examples or
+  user-facing commands.
 
-Also verify `.tsx` refs:
+## Stale-claim scan
+
+Commands:
+
+Search for the old baseline version, old command-count claims, old package-count
+claims, old large-file LOC claims, and the old linter rule count.
+
+Expected remaining matches:
+
+- README progress metadata may mention the original v0.4.45 baseline as history.
+- Architecture note may say package count grew from seven to eight as historical
+  context.
+
+Anything else should be treated as stale and rechecked against the source.
+
+## Limits
+
+This audit only proves that referenced files exist. It does not prove:
+
+- a prose claim is semantically correct
+- a symbol still has the same behavior
+- a generated docs page matches generated source
+- a public docs URL is live
+- a line number remains accurate
+
+For behavioral claims, rerun targeted `rg`, source reads, and package tests.
+
+## Recommended periodic audit
+
+After pulling upstream:
 
 ```bash
-grep -hroE 'packages/[a-z-]+/src/[a-zA-Z0-9_/.-]+\.tsx(:[0-9]+(-[0-9]+)?)?' \
-  notes/*.md ...
+cd /Users/kiyeonjeon/dev/oss/hyperframes
+git log -1 --oneline
+jq -r '.version' packages/core/package.json
+
+cd /Users/kiyeonjeon/dev/personal/labs/hyperframe-deep-dive
+rg -n 'v0\\.4\\.45|old command count|old rule count' README.md notes
 ```
 
-NLELayout.tsx, Player.tsx, App.tsx, etc. — all confirmed under `$HYPERFRAMES_REPO/`.
-
-### Recommended periodic audits
-
-- When adding new notes (after Phase F.4 / F.5)
-- After hyperframes commits that may shift line numbers
-- Possible automation: `bun run audit` npm script (not written yet)
-
-## Open gaps (cases automatic audit cannot catch)
-
-These checks need contextual rereading:
-- Function name refs (e.g. `prepareFrameForCapture`) — may be renamed
-- Constant names (e.g. `MIRROR_DRIFT_THRESHOLD_SECONDS = 0.05`) — values may change
-- Specific commit hashes — OK if history unchanged
-
-Track with explicit `<verified 2026-05-05>` timestamps in notes where relevant.
+Then rerun the path existence check above.
