@@ -10,23 +10,23 @@
 
 ```mermaid
 flowchart TD
-  U[Author / agent / CI] --> CLI[@hyperframes/cli]
-  U --> Studio[@hyperframes/studio]
-  U --> Player[@hyperframes/player]
+  U["Author / agent / CI"] --> CLI["@hyperframes/cli"]
+  U --> Studio["@hyperframes/studio"]
+  U --> Player["@hyperframes/player"]
 
-  CLI --> Core[@hyperframes/core]
-  CLI --> Producer[@hyperframes/producer]
-  CLI -. optional runtime import .-> Lambda[@hyperframes/aws-lambda]
+  CLI --> Core["@hyperframes/core"]
+  CLI --> Producer["@hyperframes/producer"]
+  CLI -.-> Lambda["@hyperframes/aws-lambda"]
 
   Studio --> Player
   Studio --> Core
   Player --> Core
 
   Producer --> Core
-  Producer --> Engine[@hyperframes/engine]
+  Producer --> Engine["@hyperframes/engine"]
   Lambda --> Producer
 
-  Shader[@hyperframes/shader-transitions] --> Engine
+  Shader["@hyperframes/shader-transitions"] --> Engine
   Shader --> Core
 ```
 
